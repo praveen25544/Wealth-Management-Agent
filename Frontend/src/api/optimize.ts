@@ -88,7 +88,7 @@ async function readJson<T>(response: Response): Promise<Partial<T> | null> {
     return {
       structuredRecommendation: text,
       agentTraceLogs: [`[HTTP] Non-JSON response from optimizer: ${response.status}`]
-    } as Partial<T>;
+    } as unknown as Partial<T>;
   }
 }
 
