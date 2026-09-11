@@ -598,6 +598,102 @@ function MetricCard({
   );
 }
 
+function RiskDial({
+  value,
+  band,
+  confidenceScore
+}: {
+  value: number;
+  band: string;
+  confidenceScore: number;
+}) {
+  const normalized = clamp01(value / 0.16);
+  const degrees = Math.round(normalized * 360);
+  const color = getRiskColor(band);
+
+  return (
+    <div className="mt-5 flex flex-col items-center">
+      <div
+        className="relative flex h-36 w-36 items-center justify-center rounded-full"
+        style={{
+          background: `conic-gradient(${color} 0deg ${degrees}deg, #e2e8f0 ${degrees}deg 360deg)`
+        }}
+      >
+        <div className="flex h-[108px] w-[108px] flex-col items-center justify-center rounded-full bg-white shadow-sm">
+          <span className="text-xs font-semibold text-slate-500">Risk</span>
+          <span className="text-2xl font-semibold text-slate-950">{value.toFixed(3)}</span>
+          <span className="text-xs font-semibold" style={{ color }}>
+            {band}
+          </span>
+        </div>
+      </div>
+      <div className="mt-4 h-2 w-full rounded-full bg-slate-100">
+        <div
+          className="h-2 rounded-full bg-emerald-500"
+          style={{ width: `${clampPercent(confidenceScore)}%` }}
+        />
+      </div>
+      <p className="mt-2 text-xs font-medium text-slate-500">
+        {Math.round(confidenceScore)}% execution readiness
+      </p>
+    </div>
+  );
+}
+
+function HorizonChart({ points, nav }: { points: number[]; nav: number }) {
+  const values = points.length > 0 ? points : [0];
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(1, max - min);
+  const coordinates = values.map((point, index) => {
+    const x = values.length === 1 ? 0 : (index / (values.length - 1)) * 100;
+    const y = 92 - ((point - min) / range) * 78;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  });
+  const firstPoint = coordinates[0] ?? "0,92";
+  const lastValue = values[values.length - 1] ?? nav;
+  const areaPath = `M ${firstPoint} L ${coordinates.join(" ")} L 100,96 L 0,96 Z`;
+
+  return (
+    <div className="mt-5">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <CompactStat label="Start NAV" value={formatMoney(nav)} />
+        <CompactStat label="Projected" value={formatMoney(lastValue)} />
+      </div>
+      <div className="h-48 rounded-md border border-slate-200 bg-slate-50 p-3">
+        <svg
+          className="h-full w-full"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          role="img"
+          aria-label="Projected portfolio path"
+        >
+          <path d={areaPath} fill="#dbeafe" />
+          <polyline
+            points={coordinates.join(" ")}
+            fill="none"
+            stroke="#0369a1"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2.4"
+            vectorEffect="non-scaling-stroke"
+          />
+          <line
+            x1="0"
+            y1="92"
+            x2="100"
+            y2="92"
+            stroke="#cbd5e1"
+            strokeDasharray="4 4"
+            strokeWidth="1"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 function PanelHeader({
   icon,
   title,
@@ -618,6 +714,71 @@ function PanelHeader({
       <span
         className={`h-2 w-2 rounded-full ${inverted ? "bg-emerald-400" : "bg-emerald-500"}`}
       />
+    </div>
+  );
+}
+
+function AllocationDonut({ allocations }: { allocations: AllocationSlice[] }) {
+  let offset = 0;
+  const segments = allocations.map((allocation) => {
+    const dash = clampPercent(allocation.currentWeight * 100);
+    const segment = {
+      allocation,
+      dash,
+      offset
+    };
+    offset += dash;
+    return segment;
+  });
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-3">
+      <svg
+        className="h-36 w-36"
+        viewBox="0 0 40 40"
+        role="img"
+        aria-label="Current allocation mix"
+      >
+        <circle cx="20" cy="20" r="15.9" fill="none" stroke="#e2e8f0" strokeWidth="5" />
+        {segments.map(({ allocation, dash, offset: segmentOffset }) => (
+          <circle
+            key={allocation.key}
+            cx="20"
+            cy="20"
+            r="15.9"
+            fill="none"
+            pathLength={100}
+            stroke={ASSET_STYLES[allocation.key].stroke}
+            strokeDasharray={`${dash} ${100 - dash}`}
+            strokeDashoffset={-segmentOffset}
+            strokeLinecap="butt"
+            strokeWidth="5"
+            transform="rotate(-90 20 20)"
+          />
+        ))}
+        <text x="20" y="19" textAnchor="middle" className="fill-slate-950 text-[5px] font-semibold">
+          NAV
+        </text>
+        <text x="20" y="25" textAnchor="middle" className="fill-slate-500 text-[4px] font-semibold">
+          mix
+        </text>
+      </svg>
+      <div className="grid w-full gap-2 text-xs">
+        {allocations.map((allocation) => (
+          <div key={allocation.key} className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-2 text-slate-600">
+              <span
+                className="h-2.5 w-2.5 rounded-sm"
+                style={{ backgroundColor: ASSET_STYLES[allocation.key].stroke }}
+              />
+              {allocation.label}
+            </span>
+            <span className="font-semibold text-slate-950">
+              {formatPercent(allocation.currentWeight)}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
