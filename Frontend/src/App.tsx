@@ -858,17 +858,138 @@ function ScenarioCard({ scenario, nav }: { scenario: StressScenario; nav: number
   );
 }
 
-function getModeLabel(mode: AgentExecutionResponse["mode"], hasResult: boolean) {
-  if (!hasResult) {
-    return "Ready";
+function ExecutionBlotter({ orders, turnover }: { orders: BlotterOrder[]; turnover: number }) {
+  return (
+    <div className="mt-5 border-t border-slate-200 pt-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+          <ReceiptText size={16} className="text-sky-600" />
+          Order blotter
+        </span>
+        <span className="text-xs font-semibold text-slate-500">
+          Turnover {formatMoney(turnover)}
+        </span>
+      </div>
+      <div className="grid gap-2">
+        {orders.map((order) => (
+          <div
+            key={order.key}
+            className="grid grid-cols-[1fr_auto_auto] items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
+          >
+            <span className="font-medium text-slate-800">{order.label}</span>
+            <span className={`rounded-md px-2 py-1 text-xs font-semibold ${getSideClasses(order.side)}`}>
+              {order.side}
+            </span>
+            <span className="text-right font-semibold text-slate-950">
+              {formatMoney(order.notional)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function getRuntimeLabel(
+  resultMode: AgentExecutionResponse["mode"],
+  health: AgentHealthResponse | null,
+  healthState: HealthState
+) {
+  if (resultMode) {
+    return getModeLabel(resultMode);
   }
+
+  if (healthState === "checking") {
+    return "Checking backend";
+  }
+
+  if (healthState === "offline") {
+    return "Browser fallback";
+  }
+
+  return getModeLabel(health?.mode);
+}
+
+function getModeLabel(mode: AgentExecutionResponse["mode"] | AgentHealthResponse["mode"]) {
   if (mode === "browser-fallback") {
     return "Browser fallback";
   }
+
   if (mode === "local-quant") {
     return "Local quant";
   }
+
   return "Gemini agent";
+}
+
+function getBackendStat(healthState: HealthState) {
+  if (healthState === "online") {
+    return "Connected";
+  }
+
+  if (healthState === "checking") {
+    return "Checking";
+  }
+
+  return "Offline";
+}
+
+function getModelStat(health: AgentHealthResponse | null, healthState: HealthState) {
+  if (healthState === "checking") {
+    return "Detecting";
+  }
+
+  if (!health) {
+    return "Browser local";
+  }
+
+  return compactModelName(health.model);
+}
+
+function compactModelName(model: string) {
+  return model
+    .replace("deterministic-local-analyst", "Local analyst")
+    .replace("gemini-", "Gemini ");
+}
+
+function formatCheckedAt(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Just now";
+  }
+
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function getRiskColor(band: string) {
+  if (band === "Critical") {
+    return "#e11d48";
+  }
+
+  if (band === "Elevated") {
+    return "#f97316";
+  }
+
+  if (band === "Moderate") {
+    return "#f59e0b";
+  }
+
+  return "#10b981";
+}
+
+function getSideClasses(side: BlotterOrder["side"]) {
+  if (side === "BUY") {
+    return "bg-emerald-50 text-emerald-700";
+  }
+
+  if (side === "SELL") {
+    return "bg-rose-50 text-rose-700";
+  }
+
+  return "bg-slate-100 text-slate-600";
 }
 
 function clampPercent(value: number) {
@@ -876,4 +997,12 @@ function clampPercent(value: number) {
     return 0;
   }
   return Math.min(100, Math.max(0, value));
+}
+
+function clamp01(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(1, Math.max(0, value));
 }
