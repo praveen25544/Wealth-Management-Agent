@@ -90,23 +90,31 @@ const PRESETS: Preset[] = [
   }
 ];
 
-const ASSET_STYLES: Record<AssetKey, { bar: string; soft: string; text: string }> = {
+const ASSET_STYLES: Record<
+  AssetKey,
+  { bar: string; soft: string; text: string; stroke: string }
+> = {
   crypto: {
     bar: "bg-amber-500",
     soft: "bg-amber-50",
-    text: "text-amber-700"
+    text: "text-amber-700",
+    stroke: "#f59e0b"
   },
   equity: {
     bar: "bg-emerald-500",
     soft: "bg-emerald-50",
-    text: "text-emerald-700"
+    text: "text-emerald-700",
+    stroke: "#10b981"
   },
   cash: {
     bar: "bg-sky-500",
     soft: "bg-sky-50",
-    text: "text-sky-700"
+    text: "text-sky-700",
+    stroke: "#0ea5e9"
   }
 };
+
+type HealthState = "checking" | "online" | "offline";
 
 export default function App() {
   const [clientProfileContext, setClientProfileContext] = useState(
@@ -125,6 +133,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AgentExecutionResponse | null>(null);
   const [loopLogs, setLoopLogs] = useState<string[]>([]);
+  const [health, setHealth] = useState<AgentHealthResponse | null>(null);
+  const [healthState, setHealthState] = useState<HealthState>("checking");
 
   const request = useMemo<UserPortfolioRequest>(
     () => ({
@@ -141,7 +151,31 @@ export default function App() {
     ]
   );
   const analysis = useMemo(() => analyzePortfolio(request), [request]);
-  const modeLabel = getModeLabel(result?.mode, Boolean(result));
+  const modeLabel = getRuntimeLabel(result?.mode, health, healthState);
+
+  useEffect(() => {
+    let active = true;
+
+    void getAgentHealth()
+      .then((response) => {
+        if (!active) {
+          return;
+        }
+        setHealth(response);
+        setHealthState("online");
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+        setHealth(null);
+        setHealthState("offline");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function onOptimize(event: FormEvent) {
     event.preventDefault();
@@ -214,9 +248,9 @@ export default function App() {
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-right">
-            <HeaderStat label="Target cash" value="30%" />
-            <HeaderStat label="Risk model" value="HHI plus vol" />
-            <HeaderStat label="Port" value="8080" />
+            <HeaderStat label="Backend" value={getBackendStat(healthState)} />
+            <HeaderStat label="Model" value={getModelStat(health, healthState)} />
+            <HeaderStat label="Target mix" value="10 / 60 / 30" />
           </div>
         </header>
 
@@ -274,6 +308,24 @@ export default function App() {
                 {running ? "Running agent" : "Run optimize"}
               </button>
             </form>
+
+            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+              <PanelHeader icon={<Server size={18} />} title="Runtime status" />
+              <div className="mt-4 grid gap-3">
+                <StatusRow
+                  icon={<Activity size={16} />}
+                  label="Optimizer"
+                  value={modeLabel}
+                  accent={healthState === "offline" ? "amber" : "emerald"}
+                />
+                <StatusRow
+                  icon={<Clock3 size={16} />}
+                  label="Last check"
+                  value={health ? formatCheckedAt(health.checkedAt) : "Browser ready"}
+                  accent="sky"
+                />
+              </div>
+            </section>
 
             <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               <div className="mb-3 flex items-center justify-between">
@@ -338,6 +390,30 @@ export default function App() {
               />
             </div>
 
+            <div className="grid gap-4 lg:grid-cols-5">
+              <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:col-span-2">
+                <PanelHeader icon={<Gauge size={18} />} title="Risk posture" />
+                <RiskDial
+                  value={analysis.isolationRiskCoefficient}
+                  band={analysis.riskBand}
+                  confidenceScore={analysis.confidenceScore}
+                />
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <CompactStat label="Cash gap" value={formatSignedMoney(analysis.cashBufferGap)} />
+                  <CompactStat
+                    label="Worst stress"
+                    value={formatSignedMoney(analysis.worstStressImpact)}
+                    danger
+                  />
+                </div>
+              </section>
+
+              <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:col-span-3">
+                <PanelHeader icon={<LineChart size={18} />} title="24-month path" />
+                <HorizonChart points={analysis.horizonPath} nav={analysis.nav} />
+              </section>
+            </div>
+
             {error && (
               <div className="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4 text-rose-800">
                 <AlertTriangle size={19} />
@@ -348,10 +424,13 @@ export default function App() {
             <div className="grid gap-4 lg:grid-cols-5">
               <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:col-span-3">
                 <PanelHeader icon={<Target size={18} />} title="Target matrix" />
-                <div className="mt-4 space-y-4">
-                  {analysis.allocations.map((allocation) => (
-                    <AllocationRow key={allocation.key} allocation={allocation} />
-                  ))}
+                <div className="mt-4 grid gap-5 md:grid-cols-[160px_minmax(0,1fr)] md:items-center">
+                  <AllocationDonut allocations={analysis.allocations} />
+                  <div className="space-y-4">
+                    {analysis.allocations.map((allocation) => (
+                      <AllocationRow key={allocation.key} allocation={allocation} />
+                    ))}
+                  </div>
                 </div>
               </section>
 
@@ -375,6 +454,7 @@ export default function App() {
                     </div>
                   )}
                 </div>
+                <ExecutionBlotter orders={analysis.blotter} turnover={analysis.turnover} />
               </section>
             </div>
 
@@ -412,6 +492,45 @@ function HeaderStat({ label, value }: { label: string; value: string }) {
     <div className="rounded-md border border-slate-200 bg-white px-3 py-2 shadow-sm">
       <p className="text-xs text-slate-500">{label}</p>
       <p className="text-sm font-semibold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function StatusRow({
+  icon,
+  label,
+  value,
+  accent
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  accent: "emerald" | "amber" | "sky";
+}) {
+  const accentClasses = {
+    emerald: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    amber: "bg-amber-50 text-amber-700 border-amber-100",
+    sky: "bg-sky-50 text-sky-700 border-sky-100"
+  }[accent];
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+      <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-slate-700">
+        <span className={`rounded-md border p-1.5 ${accentClasses}`}>{icon}</span>
+        {label}
+      </span>
+      <span className="truncate text-right text-sm font-semibold text-slate-950">{value}</span>
+    </div>
+  );
+}
+
+function CompactStat({ label, value, danger = false }: { label: string; value: string; danger?: boolean }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+      <p className="text-xs font-medium text-slate-500">{label}</p>
+      <p className={`mt-1 text-sm font-semibold ${danger ? "text-rose-700" : "text-slate-950"}`}>
+        {value}
+      </p>
     </div>
   );
 }
