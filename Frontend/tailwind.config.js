@@ -11,11 +11,11 @@ export default {
         }
       },
       boxShadow: {
-        neon: "0 0 24px rgba(34, 211, 238, 0.25)"
+        panel: "0 1px 2px rgba(15, 23, 42, 0.08)"
       },
       fontFamily: {
-        mono: ["IBM Plex Mono", "ui-monospace", "SFMono-Regular", "monospace"],
-        display: ["Orbitron", "ui-sans-serif", "system-ui", "sans-serif"]
+        mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
+        display: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"]
       }
     }
   },

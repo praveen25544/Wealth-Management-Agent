@@ -15,6 +15,7 @@ export function TelemetryTerminal({ logs, running }: TelemetryTerminalProps) {
     if (logs.length === 0) {
       return;
     }
+
     let index = 0;
     const id = window.setInterval(() => {
       index += 1;
@@ -22,7 +23,8 @@ export function TelemetryTerminal({ logs, running }: TelemetryTerminalProps) {
       if (index >= logs.length) {
         window.clearInterval(id);
       }
-    }, 140);
+    }, 90);
+
     return () => window.clearInterval(id);
   }, [logs]);
 
@@ -33,29 +35,33 @@ export function TelemetryTerminal({ logs, running }: TelemetryTerminalProps) {
   const rendered = useMemo(() => logs.slice(0, visibleCount), [logs, visibleCount]);
 
   return (
-    <section className="overflow-hidden rounded-xl border border-cyan-400/30 bg-slate-950/80 shadow-neon">
-      <header className="flex items-center justify-between border-b border-cyan-400/20 bg-slate-900/80 px-4 py-2">
-        <div className="flex items-center gap-2 text-cyan-300">
+    <section className="overflow-hidden rounded-lg border border-slate-800 bg-slate-950 shadow-sm">
+      <header className="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-4 py-3">
+        <div className="flex items-center gap-2 text-sky-300">
           <TerminalSquare size={16} />
-          <span className="font-mono text-xs tracking-[0.2em] uppercase">Telemetry / agent loop</span>
+          <span className="font-mono text-xs font-semibold">Telemetry / agent loop</span>
         </div>
-        <span className={`h-2 w-2 rounded-full ${running ? "animate-pulse bg-lime-400" : "bg-slate-500"}`} />
+        <span
+          className={`h-2 w-2 rounded-full ${
+            running ? "animate-pulse bg-emerald-400" : "bg-slate-500"
+          }`}
+        />
       </header>
       <div
         ref={scroller}
-        className="scanlines h-72 overflow-auto px-4 py-3 font-mono text-xs leading-6 text-lime-300"
+        className="scanlines h-[364px] overflow-auto px-4 py-3 font-mono text-xs leading-6 text-emerald-300"
       >
         {rendered.length === 0 && (
           <p className="text-slate-500">
-            {running ? "> synchronizing orchestrator bus…" : "> idle — await optimize cycle"}
+            {running ? "> synchronizing orchestrator bus..." : "> idle - await optimize cycle"}
           </p>
         )}
-        {rendered.map((line, i) => (
-          <p key={`${i}-${line}`}>
-            <span className="text-fuchsia-400">sw-ai$</span> {line}
+        {rendered.map((line, index) => (
+          <p key={`${index}-${line}`}>
+            <span className="text-sky-300">sw-ai$</span> {line}
           </p>
         ))}
-        {running && <p className="animate-pulse text-cyan-400">_</p>}
+        {running && <p className="animate-pulse text-sky-300">_</p>}
       </div>
     </section>
   );
